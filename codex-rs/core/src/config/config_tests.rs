@@ -69,6 +69,7 @@ use codex_model_provider_info::LMSTUDIO_OSS_PROVIDER_ID;
 use codex_model_provider_info::OLLAMA_OSS_PROVIDER_ID;
 use codex_model_provider_info::WireApi;
 use codex_models_manager::bundled_models_response;
+use codex_models_manager::test_support::construct_model_info_offline_for_tests;
 use codex_protocol::config_types::ServiceTier;
 use codex_protocol::models::ActivePermissionProfile;
 use codex_protocol::models::BUILT_IN_PERMISSION_PROFILE_DANGER_FULL_ACCESS;
@@ -7576,6 +7577,79 @@ async fn model_catalog_json_rejects_empty_catalog() -> std::io::Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn model_aliases_resolve_model_slug_and_metadata() -> std::io::Result<()> {
+    let codex_home = TempDir::new()?;
+    let mut catalog = bundled_models_response()
+        .unwrap_or_else(|err| panic!("bundled models.json should parse: {err}"));
+    let canonical = catalog
+        .models
+        .iter_mut()
+        .find(|model| model.slug == "gpt-5.3-codex")
+        .expect("bundled models should include gpt-5.3-codex");
+    canonical.supports_parallel_tool_calls = true;
+
+    let cfg = ConfigToml {
+        model: Some("gpt-5-3-codex-public".to_string()),
+        model_catalog_json: None,
+        model_aliases: HashMap::from([(
+            "gpt-5-3-codex-public".to_string(),
+            "gpt-5.3-codex".to_string(),
+        )]),
+        ..Default::default()
+    };
+
+    let mut config = Config::load_from_base_config_with_overrides(
+        cfg,
+        ConfigOverrides::default(),
+        codex_home.abs(),
+    )
+    .await?;
+    config.model_catalog = Some(catalog);
+    let model_info = construct_model_info_offline_for_tests(
+        "gpt-5-3-codex-public",
+        &config.to_models_manager_config(),
+    );
+
+    assert_eq!(model_info.slug, "gpt-5.3-codex");
+    assert!(model_info.supports_parallel_tool_calls);
+    assert!(!model_info.used_fallback_model_metadata);
+    Ok(())
+}
+
+#[tokio::test]
+async fn profile_model_aliases_override_root_aliases() -> std::io::Result<()> {
+    let codex_home = TempDir::new()?;
+    let cfg = ConfigToml {
+        model_aliases: HashMap::from([("corp-model".to_string(), "gpt-5.2".to_string())]),
+        profile: Some("work".to_string()),
+        profiles: HashMap::from([(
+            "work".to_string(),
+            ConfigProfile {
+                model_aliases: HashMap::from([(
+                    "corp-model".to_string(),
+                    "gpt-5.3-codex".to_string(),
+                )]),
+                ..Default::default()
+            },
+        )]),
+        ..Default::default()
+    };
+
+    let config = Config::load_from_base_config_with_overrides(
+        cfg,
+        ConfigOverrides::default(),
+        codex_home.abs(),
+    )
+    .await?;
+
+    assert_eq!(
+        config.model_aliases,
+        HashMap::from([("corp-model".to_string(), "gpt-5.3-codex".to_string())])
+    );
+    Ok(())
+}
+
 fn create_test_fixture() -> std::io::Result<PrecedenceTestFixture> {
     let toml = r#"
 model = "o3"
@@ -7745,6 +7819,7 @@ async fn test_precedence_fixture_with_o3_profile() -> std::io::Result<()> {
             mcp_oauth_callback_port: None,
             mcp_oauth_callback_url: None,
             model_providers: fixture.model_provider_map.clone(),
+            model_aliases: HashMap::new(),
             project_doc_max_bytes: AGENTS_MD_MAX_BYTES,
             project_doc_fallback_filenames: Vec::new(),
             tool_output_token_limit: None,
@@ -8198,6 +8273,7 @@ async fn test_precedence_fixture_with_gpt3_profile() -> std::io::Result<()> {
         mcp_oauth_callback_port: None,
         mcp_oauth_callback_url: None,
         model_providers: fixture.model_provider_map.clone(),
+        model_aliases: HashMap::new(),
         project_doc_max_bytes: AGENTS_MD_MAX_BYTES,
         project_doc_fallback_filenames: Vec::new(),
         tool_output_token_limit: None,
@@ -8365,6 +8441,7 @@ async fn test_precedence_fixture_with_zdr_profile() -> std::io::Result<()> {
         mcp_oauth_callback_port: None,
         mcp_oauth_callback_url: None,
         model_providers: fixture.model_provider_map.clone(),
+        model_aliases: HashMap::new(),
         project_doc_max_bytes: AGENTS_MD_MAX_BYTES,
         project_doc_fallback_filenames: Vec::new(),
         tool_output_token_limit: None,
@@ -8517,6 +8594,7 @@ async fn test_precedence_fixture_with_gpt5_profile() -> std::io::Result<()> {
         mcp_oauth_callback_port: None,
         mcp_oauth_callback_url: None,
         model_providers: fixture.model_provider_map.clone(),
+        model_aliases: HashMap::new(),
         project_doc_max_bytes: AGENTS_MD_MAX_BYTES,
         project_doc_fallback_filenames: Vec::new(),
         tool_output_token_limit: None,

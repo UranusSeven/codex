@@ -625,6 +625,14 @@
         "model": {
           "type": "string"
         },
+        "model_aliases": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Profile-scoped aliases that resolve custom model names to canonical model catalog entries.",
+          "type": "object"
+        },
         "model_catalog_json": {
           "allOf": [
             {
@@ -4538,6 +4546,14 @@
     "model": {
       "description": "Optional override of model selection.",
       "type": "string"
+    },
+    "model_aliases": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {},
+      "description": "User-defined aliases that resolve custom model names to canonical model catalog entries.",
+      "type": "object"
     },
     "model_auto_compact_token_limit": {
       "description": "Token usage threshold triggering auto-compaction of conversation history.",

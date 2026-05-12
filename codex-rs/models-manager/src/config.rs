@@ -1,4 +1,5 @@
 use codex_protocol::openai_models::ModelsResponse;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default)]
 pub struct ModelsManagerConfig {
@@ -9,4 +10,5 @@ pub struct ModelsManagerConfig {
     pub personality_enabled: bool,
     pub model_supports_reasoning_summaries: Option<bool>,
     pub model_catalog: Option<ModelsResponse>,
+    pub model_aliases: HashMap<String, String>,
 }

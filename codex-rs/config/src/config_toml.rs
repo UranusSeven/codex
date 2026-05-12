@@ -273,6 +273,11 @@ pub struct ConfigToml {
     #[serde(default, deserialize_with = "deserialize_model_providers")]
     pub model_providers: HashMap<String, ModelProviderInfo>,
 
+    /// User-defined aliases that resolve custom model names to canonical model
+    /// catalog entries.
+    #[serde(default)]
+    pub model_aliases: HashMap<String, String>,
+
     /// Maximum number of bytes to include from an AGENTS.md project doc file.
     #[serde(default = "default_project_doc_max_bytes")]
     pub project_doc_max_bytes: Option<usize>,

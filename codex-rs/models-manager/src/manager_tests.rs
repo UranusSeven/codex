@@ -12,6 +12,7 @@ use codex_login::TokenData;
 use codex_protocol::openai_models::ModelsResponse;
 use pretty_assertions::assert_eq;
 use serde_json::json;
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::Arc;
@@ -276,6 +277,97 @@ async fn get_model_info_uses_custom_catalog() {
     assert!(model_info.supports_image_detail_original);
     assert!(!model_info.supports_parallel_tool_calls);
     assert!(!model_info.used_fallback_model_metadata);
+}
+
+#[tokio::test]
+async fn get_model_info_resolves_alias_to_target_slug_and_metadata() {
+    let config = ModelsManagerConfig {
+        model_aliases: HashMap::from([(
+            "gpt-5-3-codex-public".to_string(),
+            "gpt-5.3-codex".to_string(),
+        )]),
+        ..Default::default()
+    };
+    let mut remote = remote_model("gpt-5.3-codex", "GPT-5.3 Codex", /*priority*/ 0);
+    remote.supports_parallel_tool_calls = true;
+    let manager = static_manager_for_tests(ModelsResponse {
+        models: vec![remote],
+    });
+
+    let model_info = manager
+        .get_model_info("gpt-5-3-codex-public", &config)
+        .await;
+
+    assert_eq!(model_info.slug, "gpt-5.3-codex");
+    assert_eq!(model_info.display_name, "GPT-5.3 Codex");
+    assert!(model_info.supports_parallel_tool_calls);
+    assert!(!model_info.used_fallback_model_metadata);
+}
+
+#[tokio::test]
+async fn get_model_info_resolves_alias_to_namespaced_target_slug() {
+    let config = ModelsManagerConfig {
+        model_aliases: HashMap::from([("gpt-5.5".to_string(), "pa/gpt-5.5".to_string())]),
+        ..Default::default()
+    };
+    let remote = remote_model("gpt-5.5", "GPT-5.5", /*priority*/ 0);
+    let manager = static_manager_for_tests(ModelsResponse {
+        models: vec![remote],
+    });
+
+    let model_info = manager.get_model_info("gpt-5.5", &config).await;
+
+    assert_eq!(model_info.slug, "pa/gpt-5.5");
+    assert_eq!(model_info.display_name, "GPT-5.5");
+    assert!(!model_info.used_fallback_model_metadata);
+}
+
+#[tokio::test]
+async fn get_model_info_applies_config_overrides_after_alias_resolution() {
+    let config = ModelsManagerConfig {
+        model_context_window: Some(128_000),
+        model_aliases: HashMap::from([(
+            "gpt-5-3-codex-public".to_string(),
+            "gpt-5.3-codex".to_string(),
+        )]),
+        ..Default::default()
+    };
+    let remote = remote_model("gpt-5.3-codex", "GPT-5.3 Codex", /*priority*/ 0);
+    let manager = static_manager_for_tests(ModelsResponse {
+        models: vec![remote],
+    });
+
+    let model_info = manager
+        .get_model_info("gpt-5-3-codex-public", &config)
+        .await;
+
+    assert_eq!(model_info.context_window, Some(128_000));
+    assert!(!model_info.used_fallback_model_metadata);
+}
+
+#[tokio::test]
+async fn get_model_info_uses_fallback_metadata_for_missing_alias_target() {
+    let config = ModelsManagerConfig {
+        model_aliases: HashMap::from([(
+            "gpt-5-3-codex-public".to_string(),
+            "missing-target".to_string(),
+        )]),
+        ..Default::default()
+    };
+    let manager = static_manager_for_tests(ModelsResponse {
+        models: vec![remote_model(
+            "gpt-5.3-codex",
+            "GPT-5.3 Codex",
+            /*priority*/ 0,
+        )],
+    });
+
+    let model_info = manager
+        .get_model_info("gpt-5-3-codex-public", &config)
+        .await;
+
+    assert_eq!(model_info.slug, "missing-target");
+    assert!(model_info.used_fallback_model_metadata);
 }
 
 #[tokio::test]

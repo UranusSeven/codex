@@ -16,6 +16,7 @@ use codex_protocol::config_types::Verbosity;
 use codex_protocol::config_types::WebSearchMode;
 use codex_protocol::openai_models::ReasoningEffort;
 use codex_protocol::protocol::AskForApproval;
+use std::collections::HashMap;
 
 /// Collection of common configuration options that a user can define as a unit
 /// in `config.toml`.
@@ -29,6 +30,10 @@ pub struct ConfigProfile {
     /// The key in the `model_providers` map identifying the
     /// [`ModelProviderInfo`] to use.
     pub model_provider: Option<String>,
+    /// Profile-scoped aliases that resolve custom model names to canonical
+    /// model catalog entries.
+    #[serde(default)]
+    pub model_aliases: HashMap<String, String>,
     pub approval_policy: Option<AskForApproval>,
     pub approvals_reviewer: Option<ApprovalsReviewer>,
     pub sandbox_mode: Option<SandboxMode>,
